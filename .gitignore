@@ -93,6 +93,14 @@ apps/shared/src/**/*.js
 apps/shared/src/**/*.js.map
 apps/shared/src/**/*.d.ts
 apps/desktop/release/
+apps/midea-desktop/build/
+apps/midea-desktop/dist/
+apps/midea-desktop/release/
+apps/midea-desktop/src/**/*.js
+apps/midea-desktop/src/**/*.js.map
+apps/midea-desktop/src/**/*.d.ts
+!apps/midea-desktop/src/global.d.ts
+!apps/midea-desktop/src/vite-env.d.ts
 *.tsbuildinfo
 
 # Web UI assets — synced from @nous-research/ui at build time via

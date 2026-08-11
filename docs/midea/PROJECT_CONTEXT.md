@@ -13,24 +13,27 @@ Midea systems.
 - Runtime profile: `midea-dev`
 - Current model provider: DeepSeek direct API
 - Current terminal backend: local Windows development environment
+- Midea desktop client: `apps/midea-desktop/`, an independent Electron + React
+  application built on the public Hermes gateway contract and `@hermes/shared`
 - Current setup posture: Blank Slate; only the minimum file and terminal
   capabilities are enabled until domain integrations are implemented
+- Midea domain plugins and MCP integrations are not implemented yet
 - No Midea business-system credentials or production data belong in this repo
 
 ## Target Architecture
 
 ```text
-WeCom / CLI / future web entry
-            |
-       Hermes Gateway
-            |
-       midea-dev profile
-            |
-          AIAgent
-       /      |       \\
-  Skills   Plugin     MCP services
-                     /      |       \\
-              Knowledge  CRM/ERP/PLM/MES
+Midea Desktop / WeCom / CLI / future web entry
+                       |
+                  Hermes Gateway
+                       |
+                  Runtime profile
+                       |
+                     AIAgent
+                  /      |       \\
+             Skills   Plugin     MCP services
+                                /      |       \\
+                         Knowledge  CRM/ERP/PLM/MES
 ```
 
 Use the least permanent surface that solves the problem:
@@ -42,6 +45,31 @@ Use the least permanent surface that solves the problem:
 4. Provider or memory plugins only when a dedicated backend is genuinely
    required.
 5. Hermes core changes only after the previous options are insufficient.
+
+## Midea Desktop Boundary
+
+`apps/midea-desktop/` is a separate, long-lived product surface. It must not
+import code, components, stores, styles, preload APIs, Electron lifecycle code,
+or build output from the generic `apps/desktop/` application.
+
+The allowed shared frontend boundary is the framework-neutral
+`apps/shared/` package (`@hermes/shared`) and the public Hermes gateway
+protocol. Generic protocol helpers needed by both desktop products belong in
+`apps/shared/` and require behavior-level tests.
+
+The first Midea Desktop release is pinned to the `midea-dev` profile. The
+Electron process supplies `--profile midea-dev`, and the renderer verifies the
+gateway-reported `profile_name` before enabling chat. Profile selection must
+remain explicit and tested for future staging and production distributions.
+
+Midea business data access, authorization, audit, and mutation policy do not
+belong in the desktop UI. They remain backend responsibilities of
+`plugins/midea-domain/` or external Midea MCP services.
+
+See [`decisions/ADR-0001-midea-desktop-boundary.md`](decisions/ADR-0001-midea-desktop-boundary.md)
+for the decision and consequences. Application-specific development guidance
+lives in [`../../apps/midea-desktop/AGENTS.md`](../../apps/midea-desktop/AGENTS.md)
+and [`../../apps/midea-desktop/README.md`](../../apps/midea-desktop/README.md).
 
 ## Initial Use Cases
 
@@ -123,6 +151,21 @@ When PowerShell resolves `python` outside `.venv`, use the explicit interpreter:
 3. Create `midea-knowledge-mcp` with document ACL filtering and citations.
 4. Configure the smallest `midea-dev` toolsets and validate with `doctor`.
 5. Connect a staging WeCom path after authorization and audit policies exist.
+
+The Midea Desktop foundation is complete. Track changing implementation status,
+verification results, known limitations, and immediate next steps in
+[`STATUS.md`](STATUS.md), rather than expanding this stable context document
+with a chronological work log.
+
+## Codex Reading Order
+
+For Midea work, read these files in order before editing:
+
+1. Repository `AGENTS.md`.
+2. This file.
+3. [`STATUS.md`](STATUS.md).
+4. Relevant records under [`decisions/`](decisions/).
+5. The nearest component-level `AGENTS.md` and README.
 
 For every task, first inspect the relevant Hermes implementation and tests,
 then state the files to change and the verification path before editing.
