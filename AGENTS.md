@@ -4,6 +4,15 @@ Instructions for AI coding assistants and developers working on the hermes-agent
 
 **Never give up on the right solution.**
 
+## Midea Project Overlay
+
+This checkout is also the development base for Midea's vertical-domain Agent.
+The Hermes rules below remain authoritative for code changes. For Midea-specific
+goals, architecture, runtime profiles, integration boundaries, and current
+work, read [`docs/midea/PROJECT_CONTEXT.md`](docs/midea/PROJECT_CONTEXT.md)
+before starting a task. Keep proprietary credentials and business data outside
+the repository.
+
 ## What Hermes Is
 
 Hermes is a personal AI agent that runs the same agent core across a CLI, a
