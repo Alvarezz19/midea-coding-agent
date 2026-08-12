@@ -1,12 +1,14 @@
-import { IconMessageCircle, IconPlus } from '@tabler/icons-react'
+import { IconMessageCircle, IconPlus, IconSettings } from '@tabler/icons-react'
 
 import { mideaAgent } from '@/lib/agent-client'
 
 interface SidebarProps {
   disabled: boolean
+  onOpenManagement: () => void
+  profile: string
 }
 
-export function Sidebar({ disabled }: SidebarProps) {
+export function Sidebar({ disabled, onOpenManagement, profile }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -38,8 +40,9 @@ export function Sidebar({ disabled }: SidebarProps) {
       </nav>
 
       <div className="sidebar-footer">
+        <button aria-label="打开工作台管理" className="sidebar-settings" onClick={onOpenManagement} type="button"><IconSettings size={16} /><span>管理设置</span></button>
         <span className="footer-label">Runtime profile</span>
-        <strong>midea-dev</strong>
+        <strong>{profile}</strong>
       </div>
     </aside>
   )

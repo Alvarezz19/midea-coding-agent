@@ -35,10 +35,11 @@ Midea Desktop is an independent workspace at `apps/midea-desktop/`.
 - Midea data access, tenant and role authorization, audit, and mutation policy
   stay in `plugins/midea-domain/` or separately deployed Midea MCP/backend
   services and must fail closed.
-- The initial distribution explicitly launches the `midea-dev` profile and
-  verifies the gateway-reported profile before enabling chat. Future profiles
-  require explicit, tested distribution or launch configuration and must not
-  silently fall back.
+- The initial distribution uses `midea-dev` as its first-run default. Electron
+  persists explicit profile selection, launches the selected profile, and
+  verifies the gateway-reported profile before enabling chat. Profile changes
+  restart the Runtime and must not silently inherit from or fall back to
+  another profile.
 
 ## Consequences
 
@@ -57,7 +58,8 @@ Midea Desktop is an independent workspace at `apps/midea-desktop/`.
 
 - `apps/midea-desktop/AGENTS.md` documents the local boundary.
 - ESLint rejects imports from the generic desktop application.
-- Runtime tests assert the `midea-dev` launch argument.
+- Runtime tests assert the `midea-dev` first-run launch argument and that a
+  request for another profile cannot reuse a mismatched Runtime connection.
 - Renderer tests assert that a mismatched gateway profile blocks chat.
 - `npm run check --workspace apps/midea-desktop` is required for desktop
   changes; runtime/profile, IPC, authentication, and gateway changes also need

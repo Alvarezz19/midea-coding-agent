@@ -40,4 +40,23 @@ describe('chat timeline', () => {
       }
     ])
   })
+
+  it('retains attachments and structured tool details', () => {
+    const attachment = { mimeType: 'image/png', name: 'fault.png', path: 'D:\\fault.png', size: 128 }
+
+    beginUserTurn('分析故障图', [attachment])
+    startTool('tool-2', 'midea_fault_diagnose', '诊断中', { code: 'E1' })
+    completeTool('tool-2', '已完成', undefined, { cause: 'sensor' }, '+fixed', 1.25, { code: 'E2' })
+
+    expect($chat.get().timeline).toMatchObject([
+      { attachments: [attachment], role: 'user' },
+      {
+        args: { code: 'E2' },
+        durationSeconds: 1.25,
+        inlineDiff: '+fixed',
+        result: { cause: 'sensor' },
+        state: 'complete'
+      }
+    ])
+  })
 })

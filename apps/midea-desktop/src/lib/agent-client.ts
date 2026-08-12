@@ -10,13 +10,14 @@ import {
   type PendingInteraction,
   resetConversation,
   setConnection,
+  setExpectedProfile,
   setInteraction,
   setSession,
   startAssistantTurn,
   startTool
 } from '@/store/chat'
 
-import { MIDEA_RUNTIME_PROFILE } from '../../electron/contracts'
+import { DEFAULT_MIDEA_PROFILE, type PickedFile } from '../../electron/contracts'
 
 interface SessionCreateResponse {
   info?: {
@@ -42,6 +43,10 @@ interface EventPayload {
   summary?: string
   text?: string
   tool_id?: string
+  args?: Record<string, unknown>
+  result?: unknown
+  inline_diff?: string
+  duration_s?: number
 }
 
 class MideaAgentClient {
@@ -49,8 +54,9 @@ class MideaAgentClient {
   private runtimeStatusUnsubscribe: (() => void) | null = null
   private startPromise: Promise<void> | null = null
   private started = false
+  private activeProfile: string = DEFAULT_MIDEA_PROFILE
 
-  start(): Promise<void> {
+  start(profile?: string): Promise<void> {
     if (this.started) {
       return Promise.resolve()
     }
@@ -59,7 +65,7 @@ class MideaAgentClient {
       return this.startPromise
     }
 
-    this.startPromise = this.connect(false)
+    this.startPromise = this.connectInitial(profile)
       .then(() => {
         this.started = true
       })
@@ -75,8 +81,37 @@ class MideaAgentClient {
     this.client.close()
     this.client = this.createGatewayClient()
     resetConversation()
-    await this.connect(true)
+    await this.connect(true, this.activeProfile)
     this.started = true
+  }
+
+  get profile(): string {
+    return this.activeProfile
+  }
+
+  async switchProfile(profile: string): Promise<void> {
+    const next = profile.trim()
+
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(next) || next === this.activeProfile) {
+      return
+    }
+
+    this.started = false
+    this.client.close()
+    this.client = this.createGatewayClient()
+    this.activeProfile = next
+    setExpectedProfile(next)
+    resetConversation()
+    await this.connect(true, next)
+    this.started = true
+  }
+
+  async releaseProfile(fallback = 'default'): Promise<void> {
+    if (this.activeProfile === fallback) {
+      return
+    }
+
+    await this.switchProfile(fallback)
   }
 
   async newConversation(): Promise<void> {
@@ -90,18 +125,51 @@ class MideaAgentClient {
     await this.createSession()
   }
 
-  async send(text: string): Promise<void> {
+  async send(text: string, files: PickedFile[] = []): Promise<void> {
     const value = text.trim()
     const sessionId = $chat.get().runtimeSessionId
 
-    if (!value || !sessionId || $chat.get().busy) {
+    if ((!value && files.length === 0) || !sessionId || $chat.get().busy) {
       return
     }
 
-    beginUserTurn(value)
+    let prompt = value || '请查看附件。'
 
     try {
-      await this.client.request('prompt.submit', { session_id: sessionId, text: value })
+      const refs: string[] = []
+
+      for (const file of files) {
+        if (file.mimeType.startsWith('image/')) {
+          const result = await this.client.request<{ attached?: boolean; path?: string; text?: string }>('image.attach', {
+            path: file.path,
+            session_id: sessionId
+          })
+
+          refs.push(result.text || `[图片附件: ${file.name}]`)
+        } else {
+          const result = await this.client.request<{ ref_text?: string; attached?: boolean }>('file.attach', {
+            name: file.name,
+            path: file.path,
+            session_id: sessionId
+          })
+
+          refs.push(result.ref_text || `[文件附件: ${file.name}]`)
+        }
+      }
+
+      if (refs.length > 0) {
+        prompt = `${refs.join('\n')}\n\n${value || '请查看这些附件。'}`
+      }
+    } catch (error) {
+      failTurn(this.errorMessage(error))
+
+      return
+    }
+
+    beginUserTurn(value || '发送了附件', files)
+
+    try {
+      await this.client.request('prompt.submit', { session_id: sessionId, text: prompt })
     } catch (error) {
       failTurn(this.errorMessage(error))
     }
@@ -151,7 +219,7 @@ class MideaAgentClient {
     return client
   }
 
-  private async connect(restart: boolean): Promise<void> {
+  private async connect(restart: boolean, profile: string): Promise<void> {
     setConnection('starting', restart ? '正在重启 Runtime' : '正在启动 Runtime')
     this.runtimeStatusUnsubscribe?.()
     this.runtimeStatusUnsubscribe = window.mideaDesktop.runtime.onStatus(status => {
@@ -162,13 +230,35 @@ class MideaAgentClient {
 
     try {
       const connection = restart
-        ? await window.mideaDesktop.runtime.restart()
-        : await window.mideaDesktop.runtime.connect()
+        ? await window.mideaDesktop.runtime.restart(profile)
+        : await window.mideaDesktop.runtime.connect(profile)
 
-      if (connection.profile !== MIDEA_RUNTIME_PROFILE) {
+      if (connection.profile !== profile) {
         throw new Error(`Runtime profile 不匹配：${connection.profile}`)
       }
 
+      await this.client.connect(connection.wsUrl)
+      await this.createSession()
+    } catch (error) {
+      setConnection('error', this.errorMessage(error))
+      throw error
+    }
+  }
+
+  private async connectInitial(profile?: string): Promise<void> {
+    setConnection('starting', '正在启动 Runtime')
+    this.runtimeStatusUnsubscribe?.()
+    this.runtimeStatusUnsubscribe = window.mideaDesktop.runtime.onStatus(status => {
+      if (status.phase === 'error') {
+        setConnection('error', status.detail || 'Runtime 启动失败')
+      }
+    })
+
+    try {
+      const connection = await window.mideaDesktop.runtime.connect(profile)
+
+      this.activeProfile = connection.profile
+      setExpectedProfile(connection.profile)
       await this.client.connect(connection.wsUrl)
       await this.createSession()
     } catch (error) {
@@ -185,9 +275,9 @@ class MideaAgentClient {
 
     const actualProfile = created.info?.profile_name || ''
 
-    if (actualProfile !== MIDEA_RUNTIME_PROFILE) {
+    if (actualProfile !== this.activeProfile) {
       await this.client.request('session.close', { session_id: created.session_id }).catch(() => undefined)
-      throw new Error(`Runtime profile 校验失败：期望 ${MIDEA_RUNTIME_PROFILE}，实际 ${actualProfile || '未知'}`)
+      throw new Error(`Runtime profile 校验失败：期望 ${this.activeProfile}，实际 ${actualProfile || '未知'}`)
     }
 
     setSession(created.session_id, actualProfile)
@@ -219,12 +309,20 @@ class MideaAgentClient {
         break
 
       case 'tool.start':
-        startTool(payload.tool_id || `tool-${Date.now()}`, payload.name || 'tool', payload.context || '')
+        startTool(payload.tool_id || `tool-${Date.now()}`, payload.name || 'tool', payload.context || '', payload.args)
 
         break
 
       case 'tool.complete':
-        completeTool(payload.tool_id || '', payload.summary || payload.result_text || '', payload.error)
+        completeTool(
+          payload.tool_id || '',
+          payload.summary || payload.result_text || '',
+          payload.error,
+          payload.result,
+          payload.inline_diff,
+          payload.duration_s,
+          payload.args
+        )
 
         break
 

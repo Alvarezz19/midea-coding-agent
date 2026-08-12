@@ -1,6 +1,7 @@
 import { atom } from 'nanostores'
 
-import { MIDEA_RUNTIME_PROFILE } from '../../electron/contracts'
+import { DEFAULT_MIDEA_PROFILE } from '../../electron/contracts'
+import type { PickedFile } from '../../electron/contracts'
 
 export type ConnectionPhase = 'starting' | 'connecting' | 'ready' | 'error'
 
@@ -10,6 +11,7 @@ export interface ChatMessage {
   role: 'assistant' | 'user' | 'error'
   state: 'streaming' | 'complete'
   text: string
+  attachments?: PickedFile[]
 }
 
 export interface ToolActivity {
@@ -18,6 +20,10 @@ export interface ToolActivity {
   name: string
   state: 'running' | 'complete' | 'error'
   summary: string
+  args?: Record<string, unknown>
+  result?: unknown
+  inlineDiff?: string
+  durationSeconds?: number
 }
 
 export type TimelineItem = ChatMessage | ToolActivity
@@ -52,7 +58,7 @@ export interface ChatState {
   connectionDetail: string
   connectionPhase: ConnectionPhase
   currentAssistantId: string | null
-  expectedProfile: typeof MIDEA_RUNTIME_PROFILE
+  expectedProfile: string
   interaction: PendingInteraction | null
   runtimeSessionId: string | null
   timeline: TimelineItem[]
@@ -64,7 +70,7 @@ const initialState = (): ChatState => ({
   connectionDetail: '正在启动 Runtime',
   connectionPhase: 'starting',
   currentAssistantId: null,
-  expectedProfile: MIDEA_RUNTIME_PROFILE,
+  expectedProfile: DEFAULT_MIDEA_PROFILE,
   interaction: null,
   runtimeSessionId: null,
   timeline: []
@@ -89,6 +95,10 @@ export function setSession(runtimeSessionId: string, actualProfile: string): voi
   })
 }
 
+export function setExpectedProfile(expectedProfile: string): void {
+  $chat.set({ ...$chat.get(), expectedProfile })
+}
+
 export function resetConversation(): void {
   const state = $chat.get()
 
@@ -102,7 +112,7 @@ export function resetConversation(): void {
   })
 }
 
-export function beginUserTurn(text: string): void {
+export function beginUserTurn(text: string, attachments: PickedFile[] = []): void {
   const state = $chat.get()
 
   const message: ChatMessage = {
@@ -110,7 +120,8 @@ export function beginUserTurn(text: string): void {
     kind: 'message',
     role: 'user',
     state: 'complete',
-    text
+    text,
+    attachments: attachments.length > 0 ? attachments : undefined
   }
 
   $chat.set({ ...state, busy: true, timeline: [...state.timeline, message] })
@@ -157,7 +168,7 @@ export function completeAssistantTurn(text?: string): void {
   $chat.set({ ...state, busy: false, currentAssistantId: null, timeline })
 }
 
-export function startTool(toolId: string, name: string, summary: string): void {
+export function startTool(toolId: string, name: string, summary: string, args?: Record<string, unknown>): void {
   const state = $chat.get()
   const existing = state.timeline.some(item => item.id === toolId)
 
@@ -170,18 +181,35 @@ export function startTool(toolId: string, name: string, summary: string): void {
     kind: 'tool',
     name: name || 'tool',
     state: 'running',
-    summary
+    summary,
+    args
   }
 
   $chat.set({ ...state, timeline: [...state.timeline, tool] })
 }
 
-export function completeTool(toolId: string, summary: string, error?: string): void {
+export function completeTool(
+  toolId: string,
+  summary: string,
+  error?: string,
+  result?: unknown,
+  inlineDiff?: string,
+  durationSeconds?: number,
+  args?: Record<string, unknown>
+): void {
   const state = $chat.get()
 
   const timeline = state.timeline.map(item =>
     item.id === toolId && item.kind === 'tool'
-      ? { ...item, state: error ? ('error' as const) : ('complete' as const), summary: error || summary || item.summary }
+      ? {
+          ...item,
+          args: args || item.args,
+          durationSeconds,
+          inlineDiff,
+          result,
+          state: error ? ('error' as const) : ('complete' as const),
+          summary: error || summary || item.summary
+        }
       : item
   )
 

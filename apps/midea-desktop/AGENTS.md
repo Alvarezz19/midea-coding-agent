@@ -17,9 +17,15 @@ The UI must never be treated as an authorization boundary. All enterprise access
 
 ## Runtime Profile
 
-Development builds are pinned to `midea-dev`. Both command construction and the gateway-reported `profile_name` must agree before the composer becomes available. Do not replace this invariant with an unchecked environment variable.
+Development builds use `midea-dev` as the first-run default and support explicit
+profile selection after that. The selected profile is persisted by Electron,
+passed to the Runtime command, and must agree with the gateway-reported
+`profile_name` before the composer becomes available. Connecting to another
+profile must restart the Runtime; never return a connection for a different
+profile or replace this invariant with an unchecked environment variable.
 
-Future staging and production support must use an explicit, tested distribution or launch configuration. It must not silently fall back between profiles.
+Staging and production profiles must be explicitly created, selected, and
+tested. They must not silently inherit from or fall back to another profile.
 
 ## Verification
 

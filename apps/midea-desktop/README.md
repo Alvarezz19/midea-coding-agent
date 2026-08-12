@@ -7,14 +7,22 @@ Midea Desktop is an independent Electron + React client for the Midea vertical-d
 ```text
 apps/midea-desktop
   Electron main process
-      -> hermes --profile midea-dev serve --isolated
+      -> hermes --profile <selected-profile> serve --isolated
   React renderer
       -> @hermes/shared JsonRpcGatewayClient
   Midea domain capability
       -> plugins/midea-domain and external Midea MCP services
 ```
 
-The initial release intentionally fixes the runtime profile to `midea-dev`. The Electron process passes `--profile midea-dev`, and the renderer rejects the session if the gateway reports another profile.
+The first launch defaults to `midea-dev`. Midea Desktop can create, clone,
+switch, rename, and delete isolated Hermes profiles; Electron persists the
+selection and restarts the Runtime with `--profile <selected-profile>`. The
+renderer rejects the session if the gateway reports any other profile.
+
+The desktop also provides rich chat rendering (Markdown, highlighted code,
+attachments, media, structured tool output, and diffs), onboarding, settings,
+provider/model/tool management, Skills Hub and custom Skill management, and MCP
+server/catalog/OAuth management.
 
 ## Development
 

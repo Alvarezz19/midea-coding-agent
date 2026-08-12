@@ -10,7 +10,8 @@ Midea systems.
 ## Current Status
 
 - Repository: `Alvarezz19/midea-coding-agent`
-- Runtime profile: `midea-dev`
+- First-run runtime profile: `midea-dev`; Midea Desktop persists explicit
+  profile selections and keeps each Runtime isolated
 - Current model provider: DeepSeek direct API
 - Current terminal backend: local Windows development environment
 - Midea desktop client: `apps/midea-desktop/`, an independent Electron + React
@@ -57,10 +58,12 @@ The allowed shared frontend boundary is the framework-neutral
 protocol. Generic protocol helpers needed by both desktop products belong in
 `apps/shared/` and require behavior-level tests.
 
-The first Midea Desktop release is pinned to the `midea-dev` profile. The
-Electron process supplies `--profile midea-dev`, and the renderer verifies the
+Midea Desktop defaults to the `midea-dev` profile on first launch and supports
+explicit creation and selection of isolated profiles. The Electron process
+supplies `--profile <selected-profile>`, and the renderer verifies the
 gateway-reported `profile_name` before enabling chat. Profile selection must
-remain explicit and tested for future staging and production distributions.
+remain explicit and tested; it must never silently fall back between
+development, staging, and production.
 
 Midea business data access, authorization, audit, and mutation policy do not
 belong in the desktop UI. They remain backend responsibilities of
